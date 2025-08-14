@@ -1,0 +1,744 @@
+Translated by SoybeanSEC
+https://github.com/Team-intN18-SoybeanSeclab
+
+|=------------------------------------------------------------------------=|
+|=-----------------=[ APT Down - 朝鲜文件 ]=-----------------=|
+|=------------------------------------------------------------------------=|
+|=--------------------------=[ Saber / cyb0rg ]=--------------------------=|
+|=-----------------=[ 5bc524352881851934d4a88eb8c1682c ]=-----------------=|
+--[ 目录
+
+0 - 引言
+
+F - 亲爱的Kimsuky，你并非是黑客
+
+1 - 泄露数据
+1.1 - 韩国国防情报司令部 (dcc.mil.kr)
+1.2 - 访问韩国外交部
+1.3 - 访问韩国政府内部网络
+1.4 - 其他杂项
+
+2 - 分析成果
+2.1 - Generator 与 国防情报司令部
+2.2 - TomCat 远程内核后门
+2.3 - 私有化 Cobalt Strike Beacon
+2.4 - Android Toybox
+2.5 - Ivanti Control 又名 RootRot
+2.6 - Bushfire
+2.7 - Spawn Chimera 与《韩民族日报》
+
+3 - 识别 Kimsuky
+3.1 - “隐秘追踪者”行动 (Operation Covert Stalker)
+3.2 - 被盗的 GPKI 证书
+3.3 - 相似目标
+3.4 - 针对 Microsoft 用户的 AiTM 攻击假设
+3.5 - KIM 是中国人吗？
+3.6 - 趣闻与笑料
+
+--[ 0. 引言
+
+本文分析了一个高级持续性威胁（APT）组织工作站的数据泄露内容。特别是从一名持续针对韩国和台湾组织的威胁行为者的工作站中检索到的数据和源代码。
+
+我们相信这属于朝鲜“Kimsuky”组织 [#14] 的成员。
+
+“Kimsuky 是一个受朝鲜国家支持的高级持续性威胁组织（APT），
+其目标包括智库、工业界、核电运营商和政府机构，目的是进行间谍活动。
+该组织被指定为朝鲜政府的机构、工具或受控实体，
+依据行政命令（E.O.）13687 进行制裁。”
+
+为本文方便，我们将此特定成员称为“KIM”。
+
+KIM 不是你的朋友。
+
+泄露的数据包括许多 Kimsuky 的后门及其工具，以及内部文档。它展示了“Kimsuky”如何公开地与中国 APT 组织合作，共享其工具和技术的一瞥。
+
+其中一些工具可能已为安全社区所知：你见过他们的扫描痕迹，发现过他们的服务器端痕迹和植入程序。现在，你还将看到他们的客户端、文档、密码、源代码和命令文件...
+
+作为赠品，我们还提供了他们用于鱼叉式网络钓鱼攻击的 VPS 备份。
+
+本文邀请威胁猎人、逆向工程师和黑客们，-享受吧。
+
+文章的核心内容分为三部分：
+-- 1.x 泄露数据：日志文件、历史文件、密码列表等
+-- 2.x 他们的后门、工具、载荷
+-- 3.x 关于该威胁行为者的开源情报（OSINT）
+
+泄露数据可在以下位置获取：
+
+http://gdlvc66enozrke2pbcg2cnyhmfhzu77wo5g4qluebnas3qiqn4mgerid.onion (Tor 地址)
+
+https://ddosecrets.com/article/apt-down-the-north-korea-files
+
+https://drive.proton.me/urls/ZQ1235FY7C#P0khjXI2uEtS
+
+在发布本文之前，我们已通知韩国受害者，以便他们有足够时间更改登录凭据。我们没有通知 KIM：他的 VPS 和域名注册商的凭据仍然有效（截至今天早上）。祝你好运。
+
+--[ F. 亲爱的 Kimsuky，你不是黑客
+
+什么定义了黑客？是那些聪明绝顶、极其聪明的人，他们乐于将技术用于超出其设计初衷的用途，且不会造成伤害，没有政治议程，也没有金钱动机。他们不收钱，不要报酬。他们不追随任何人，目标除了表达他们的创造力外别无其他。
+
+一位艺术家。
+
+Kimsuky，你不是黑客。你受金钱贪婪驱使，只为丰富你的领导者，并实现他们的政治议程。你偷窃他人成果，偏袒自己人。你将自己凌驾于他人之上：你在道德上是扭曲的。
+
+我是一名黑客，我是你所有对立面的集合。在我的领域里，我们都是相似的。我们存在没有肤色、没有国籍、也没有政治议程。我们不是任何人的奴隶。
+
+我进行黑客活动是为了表达我的创造力，并与像我一样的其他艺术家分享我的知识。为了贡献、分享并推进全人类的知识。只为了波特率（baud）之美。
+
+你进行黑客活动的原因全是错误的。
+
+--[ 1. 泄露数据
+
+     >>> 打开泄露数据中的文件时请务必小心。 <<<
+               >>> 你已被警告。 <<<
+本段简要概述了泄露的数据，然后仔细研究了三个初步发现：
+
+显示针对韩国国防情报司令部攻击的日志
+
+访问韩国外交部
+
+访问韩国政府内部网络
+
+...以及许多我们还没有时间查看的文件。#请享用
+
+第一个泄露数据来自 KIM 的客户机虚拟机（guest VM），第二个来自他的公共 VPS。
+
+两个泄露数据都是在 2025 年 6 月 10 日左右获取的。
+
+第一个泄露数据：
+
+他的桌面截图 (kim_desktop.jpg)。
+
+Linux 开发系统（虚拟机，运行 Deepin 20.9 Linux）。
+该客户机 VM 挂载了主机的 C:\ 盘 (hgfs)。包含在内。
+
+所有文件的列表可在 ./file-lists 中找到。
+
+Brave 和 Chrome 历史记录中约有 20,000 条条目。揭示了许多电子邮件地址 (jeder97271@wuzak.com, xocaw75424@weiby.com, ..)、KIM 访问的网站以及 KIM 下载的工具。所有 Chrome 扩展程序，例如欺骗用户代理的扩展、Proxy SwitchyOmega、Cookie Editor 以及许多其他扩展。
+
+文件 ko 图文编译 .doc 是关于如何操作其某个后门的说明书。其中还有一个听起来非常官方的声明（翻译后）：“禁止在指定用途之外使用该后门”。
+
+mnt/hgfs/Desktop/fish_25327/vps20240103.docx 中包含大量密码。包括电子邮件和 VPS 密码（有效）。
+
+root / 1qaz2wsx
+
+dysoni91@tutamail.com / !QAZ4rfv!@#$
+
+https://sg24.vps.bz:4083 / center2025a@tutamail.com / H4FHKMWMpX8bZ
+
+https://monovm.com / dysoni91@tutamail.com / dr567h%a"G6*m
+
+查看 fish-url.txt & generator.php 可以了解密码重复使用的模式。
+
+第二个泄露数据：
+
+服务器名称：vps1735811325，托管于 vps.bz
+
+该服务器被用于各种鱼叉式网络钓鱼活动
+
+值得注意的是 SSL 证书和 auth.log。用于网络钓鱼攻击的源代码将在下文讨论。
+
+----[ 1.1 - 韩国国防情报司令部 (dcc.mil.kr)
+
+存放位置： vps/var/www/html/
+
+韩国国防情报司令部 (DCC) 是韩国武装部队的情报机构。
+
+DCC 主要负责情报任务，例如秘密和隐蔽行动以及反间谍活动。
+
+日志显示，就在三天前发生了一次针对 dcc.mil.kr 的网络钓鱼攻击。
+
+同一日志中还包含韩国大检察厅 (spo.go.kr)、korea.kr、daum.net、kakao.com 和 naver.com。值得注意的是，dcc.mil.kr 的管理联系人 (Admin-C) 注册为 hyuny1982@naver.com。
+
+............................................................................
+grep -Fhr 'dcc.mil.kr' log | uniq
+jandy3912@dcc.mil.kr_amFuZHkzOTEyQGRjYy5taWwua3I=
+di031111@dcc.mil.kr_ZGkwMzExMTFAZGNjLm1pbC5rcg==
+didcdba@dcc.mil.kr_ZGlkY2RiYUBkY2MubWlsLmty
+jhcgod88@dcc.mil.kr_amhjZ29kODhAZGNjLm1pbC5rcg==
+chanchan0616@dcc.mil.kr_Y2hhbmNoYW4wNjE2QGRjYy5taWwua3I=
+yib100@dcc.mil.kr_eWliMTAwQGRjYy5taWwua3I=
+Dsc808@dcc.mil.kr_RHNjODA4QGRjYy5taWwua3I=
+[...]
+............................................................................
+
+此次攻击中使用的工具在 2.1 节 (Generator) 中讨论。
+
+----[ 1.2 - 访问韩国外交部资源库
+
+在一个名为 mofa.go.kr.7z 的文件中发现了韩国外交部电子邮件平台的副本。源代码很可能是近期获取的：
+
+............................................................................
+1923 Apr 1 07:15 .gitignore
+96 Apr 1 07:15 .gitmodules
+4096 Apr 1 07:15 kebi-batch/
+4096 Apr 1 07:15 kebi-core/
+4096 Apr 1 07:15 kebi-resources/
+4096 Apr 1 07:15 kebi-web-admin/
+4096 Apr 1 07:15 kebi-web-archive/
+4096 Apr 1 07:15 kebi-web-mail/
+4096 Apr 1 07:15 kebi-web-mobile/
+4096 Apr 1 07:16 kebi-web-parent/
+7528 Apr 1 07:16 pom.xml
+14099 Apr 1 07:15 README.txt
+............................................................................
+
+根据文件格式，这很可能是一个 GitHub 仓库的转储，似乎是电子邮件服务器的部分组件。源代码包含多个对政府域名的引用：
+
+............................................................................
+./kebi-web-parent/mail/document/info.txt
+
+/home/ksign/agent
+http://email.mofa.go.kr:8080/mail/sso?type=login
+http://mail.mofa.go.kr:8080/mail/sso?type=unseenMails
+
+http://email.mofa.go.kr:8190/mail/sso?type=login
+http://mail.mofa.go.kr:8080/mail/sso?type=unseenMails
+............................................................................
+
+----[ 1.3 - 访问韩国政府内部网络
+
+KIM 似乎维持着对韩国政府内部网络系统的访问权限。有一个名为 onnara_auto 的项目，其中包含几个有趣的文件。
+
+该项目似乎是用于查询内部政府服务器的工具。
+
+例如，名为 /onnara_auto/log/log-20250511.log 的文件包含以下条目：
+............................................................................
+[horedi179] get onnara9.saas.gcloud.go.kr at 11/05/2025 19:41:23
+[horedi179] main_job:Session 6112b9bc-5a2a-4abd-a907-aaec4b19e2ed does not
+exist at 11/05/2025 19:41:23 [horedi179] get onnara9.saas.gcloud.go.kr at
+11/05/2025 19:41:23
+[horedi179] get https://onnara9.saas.gcloud.go.kr/ at 11/05/2025 19:45:37
+[horedi179] main_job:Session 0c446a8c-e913-467d-a9b9-3f08abfb6f7a does not
+exist at 11/05/2025 19:45:37
+[horedi179] get https://onnara9.saas.gcloud.go.kr/SSO.do at 11/05/202...
+............................................................................
+
+对应的代码：
+............................................................................
+drives = instanceManger(config_hub)
+client = Client(config_hub)
+plugins = PluginManager()
+try:
+onnara = onnara_sso("horedi79", "", "", "1250000","onnara9")
+
+klass = plugins.load(os.path.join(os.getcwd(),
+"scripts", target_project, "onLaunch.py"),
+opts={'onnara':onnara,'drives': drives, "client": client})
+............................................................................
+
+主机名 onnara9.saas.gcloud.go.kr 无法从公共互联网访问，但该域名出现在一些文件中，被称为内部政府门户。KIM 似乎可以访问该网络。
+
+----[ 1.4 其他杂项
+
+他的原始 IP 是 156.59.13.153（新加坡）。该 IP 在端口 60233 上运行 SSHD，端口 4012 显示一个 CN=*.appletls.com 的 TLS 证书。
+
+Fofa 显示大约有 1,100 个具有该证书的唯一 IP 地址。大多数（>90%）位于中国大陆和香港。这些可能是一些 VPN 代理网络或操作中继盒（ORBs）。（类似于“Superjumper”和 [#15]）
+
+2025 年 6 月 13 日，KIM 注册了 webcloud-notice.com。我们相信这是为未来的网络钓鱼攻击做准备。
+
+有一个用于 rc.kt.co.kr 的证书和私钥，这是韩国电信（KT）的远程控制服务。
+
+在 mnt/hgfs/Desktop/111/account/account.txt 中有大量来自韩国移动运营商“LG Uplus”(LGU) 的密码。图标搜索（favicon-search）表明 KIM 首先入侵了 SECUREKI（一家向 LGU 提供多因素认证（MFA）和密码服务的公司），然后从那里渗透进入 LGU 的内部网络。
+
+APPM_TRANS.txt 和 111/config.txt 包含访问 LGU 内部服务器的凭据。
+
+gpki.7z = 政府公钥基础设施（Government-PKI）：包含有关韩国政府公钥基础设施（GPKI）的内部数据。另请参阅 GPKISecureWebX 和 111/2.rar（下文详述）。
+
+ROOT.zip 包含最初被 KIM 入侵的 APPM 安全解决方案的源代码。文件 app_one_cmd.py 是 APPM 安全解决方案的反编译 Python 程序。
+
+他的谷歌搜索历史值得仔细研究。特别是关于 chacha20 和 arc4 的部分。Chrome 临时文件也应给予关注。
+
+他似乎从 [#16] 下载他的开发工具，并从现已废弃的 TOR 地址 [#17] 窃取了他的 IDA Pro 许可证。
+
+Google Chrome 配置文件包含这些链接。KIM 是否使用（他的？）谷歌凭证访问这些站点？wwh1004 是他的 GitHub 账户吗？他是否使用 google-pay 支付了三个 VPN 服务的费用？
+
+............................................................................
+"https://accounts.google.com:443,https://[.]0x1.gitlab.io":
+"https://accounts.google.com:443,https://[.]aldeid.com":
+"https://accounts.google.com:443,https://[.]asawicki.info":
+"https://accounts.google.com:443,https://[.]devglan.com":
+"https://accounts.google.com:443,https://[.]edureka.co":
+"https://accounts.google.com:443,https://[.]johnwu.cc":
+"https://accounts.google.com:443,https://[.]majorgeeks.com":
+"https://accounts.google.com:443,https://[.]maskray.me":
+"https://accounts.google.com:443,https://[.]namecheap.com":
+"https://accounts.google.com:443,https://[.]qwqdanchun.com":
+"https://accounts.google.com:443,https://[.]rakuya.com.tw":
+"https://accounts.google.com:443,https://[.]redteaming.top":
+"https://accounts.google.com:443,https://[.]reversecoding.net":
+"https://accounts.google.com:443,https://[.]shhoya.github.io":
+"https://accounts.google.com:443,https://[.]sparktoro.com":
+"https://accounts.google.com:443,https://[.]tutorialspoint.com":
+"https://accounts.google.com:443,https://[.]wiseindy.com":
+"https://accounts.google.com:443,https://[.]wwh1004.com":
+"https://accounts.google.com:443,https://[.]wwh1004.github.io":
+"https://pay.google.com:443,https://[.]purevpn.com":
+"https://pay.google.com:443,https://[.]purevpn.com.tw":
+"https://pay.google.com:443,https://[.]zoogvpn.com":
+............................................................................
+
+KIM 使用谷歌翻译将错误信息翻译成中文。
+
+他的 Chrome 历史记录中出现了一些台湾政府和军事网站。
+
+韩国公民的证书值得深入研究，以及他为何专门隔离大学教授的证书。
+
+work/home/user/.cache/vmware/drag_and_drop/ 文件夹包含 KIM 在 Windows 和 Linux 机器之间移动的文件。这些文件包括 Cobalt Strike 加载器、用 PowerShell 编写的反向 Shell、编译版的 Onnara 代码，以及用于代理进入政府网络的 Onnara 模块等。
+
+在目录 work/home/user/.config/google-chrome/Default/ 中有许多有趣的文件（.com.google.Chrome*），它们让我们得以了解“KIM”的兴趣、搜索习惯和访问的网站。从中我们可以了解到，他经常关注 Cobalt Strike (CS) 的持久性，疑惑为何中央巡视组在昆明设立中心，并且是多个 GitHub 项目的忠实粉丝。他还经常访问 freebuf.com、xaker.ru，并使用谷歌翻译阅读 accessibility-moda-gov-tw.translate.goog（从台湾语翻译）。
+
+文件 voS9AyMZ.tar.gz 和 Black.x64.tar.gz 需要进一步研究。这些二进制文件的哈希值在 VirusTotal 上未知，但名称看起来很诱人：
+
+2bcef4444191c7a5943126338f8ba36404214202 payload.bin
+
+e6be345a13641b56da2a935eecfa7bdbe725b44e payload_test.bin
+
+3e8b9d045dba5d4a49f409f83271487b5e7d076f s.x64.bin
+
+他的 bash_history 显示了到其本地网络上计算机的 SSH 连接。
+
+Pete Hegseth 会说“他目前在操作安全（OPSEC）方面很干净”。
+
+--[ 2. 分析成果
+
+本节分析了 Kimsuky 的六个后门和分析成果。这项工作既不完整也未完成。这是一个开始，旨在激发你的兴趣，并了解 Kimsuky 的运作方式及其使用的工具。
+
+----[ 2.1 Generator 与 韩国国防情报司令部
+
+存放位置： vps/var/www/html/
+
+该钓鱼工具在一个与受害者熟悉并信任的域名相似的域名下暴露一个 HTTPS 网站（钓鱼网站）。然后，dcc.mil.kr 的受害者会收到指向该钓鱼网站的链接。攻击者希望受害者将其登录凭据输入钓鱼网站。
+
+受害者的最终重定向是离开钓鱼网站，转向合法网站上的某个 URI。这个 URI 总是会抛出登录错误。这是一个针对性攻击，攻击者必须在 https://dcc.mil.kr 的合法网站上找到这样一个 URI。
+
+这种“技巧”的好处是，受害者会看到来自 https://dcc.mil.kr（他熟悉并信任的网站）的错误，即使他的凭据已提交给钓鱼网站。
+
+[ config.php:
+包含一个很长的 IP 黑名单（和其他黑名单），这样像趋势科技（Trend Micro）和谷歌（Google）这样的公司就无法发现钓鱼网站。
+
+[ generator.php:
+这是用于管理钓鱼攻击的远程管理界面。它可通过可配置的密码访问。然而，Cookie 是硬编码的，可以通过设置 Cookie 而非密码来访问管理界面：
+
+............................................................................
+curl -v --cookie "HnoplYTfPX=x" https://phishing-site/generator.php
+............................................................................
+
+扫描互联网并查找钓鱼结果很简单：
+............................................................................
+curl -v --cookie "HnoplYTfPX=x" https://phishing-site/logs.php
+............................................................................
+
+----[ 2.2 Tomcat 远程内核后门
+
+存放位置： mnt/hgfs/Desktop/tomcat20250414_rootkit_linux234/
+
+这是一个内核级的远程后门。它允许攻击者远程访问主机并隐藏自身。泄露数据包含客户端 (tcat.c)、服务器端可加载内核模块 (LKM) (vmwfxs.mod.c) 和用户态后门 (master.c)。
+
+客户端通过（直接）TCP 与受害者的服务器通信。LKM 会嗅探匹配特定 TCP 序列号 (TCP-SEQ) + IP 标识符 (IP-ID) 组合（见下文）的任何 TCP 连接。LKM 通过 /proc/acpi/pcicard 与其伴侣程序 master.c 用户态后门通信。
+
+主密码是 "Miu2jACgXeDsxd"。
+客户端使用 "!@nf4@#fndskgadnsewngaldfkl"。
+
+脚本 tomcat20250414_rootkit_linux2345/config.sh 为每次安装动态生成新的秘密 ID 和字符串，并将它们保存到 install.h。主密码是硬编码的，不会改变。
+
+[ work/common.c:
+编译进客户端和 master。它包含许多旧的私钥。较新的后门会动态生成这些密钥（参见 install_common.c）。
+
+[ lkm - vmwfxs.mod.c:
+这是 LKM 的“存根”，用于钩住所需的内核函数。
+
+[ lkm - main.c:
+进程、网络连接和文件隐藏在这里进行。
+
+[ lkm - hkcap.c:
+创建 /proc/acpi/pcicard 以与用户态通信：
+
+............................................................................
+echo -n "${DECODEKEY}" > /proc/acpi/pcicard
+............................................................................
+
+内核模块拦截每个新的 TCP 连接，并检查是否使用了秘密的 TCP-SEQ 和 IP-ID（在任何端口上！）。该检查在 syn_active_check() 中完成。TCP 窗口大小字段用于设置后门协议（主要是 SYN_KNOCK 或 SYN_KNOCK_SSL）。
+
+如果满足此条件，它会触发以下两个步骤：
+
+启动一个用户态 master.c 进程（并将 MASTER_TRANS_STRAIGHT_ARGV 作为参数传递给命令行选项 -m）。
+
+它将 TCP 流重定向到用户态 master.c 进程（从而将其从预期服务中窃取）。
+
+然后 master.c 为攻击者服务。
+
+[ master - master.c:
+用户态伴侣程序在受害者的服务器上作为隐藏进程运行。它处理 SSL 握手，并具有生成 root shell 或将连接代理到内部网络的标准功能。
+
+主例程在 master_main_handle() 中。
+
+[ client - tcat.c:
+包含通过 TCP-SEQ+IP-ID “敲门”（knock）受害者的 LKM（后门）并通过 SSL 连接到受害服务器上（由 LKM）启动的 master.c 进程的所有功能。
+
+[ client - kernel.c:
+包含预定义和秘密的 TCP-SEQ 编号和 IP-ID。任何组合都可用于“敲”远程后门。这些不是动态生成的，并且在每次安装中都是相同的。
+
+[ client - protocol.c:
+包含通过 SMTP、HTTP 或 HTTPS (TLS) 协议访问后门的各种存根和静态字符串。
+
+............................................................................
+char smtp_e1[] = "250-example.com\r\n250-STARTTLS\r\n250 SMTPUTF8\r\n";
+char smtp_tls1[] = "220 Ready to start TLS\r\n";
+char smtp_starttls[] = "starttls\r\n";
+char smtp_hello[] = "HELO Alice\r\n";
+............................................................................
+
+在本地检测该 LKM 很简单。
+
+远程检测该 LKM 可能也很简单，但需要进一步测试：
+
+密码验证是在 SSL 握手之后进行的 <<<
+
+因此，应该可以通过 TCP 连接（SEQ=920587710 和 ID=10213）和端口号“敲”后门，连接到通常不支持 SSL 的服务（如端口 80、22 或 25）。
+
+建立 TCP 连接
+
+发送 TLS-CLIENT-HELLO
+
+受感染的服务器将响应有效的 TLS-SERVER-HELLO，而其他任何服务器则不会。
+
+----[ 2.3 私有化 Cobalt Strike Beacon
+
+存放位置： mnt/hgfs/Desktop/111/beacon
+
+这是一个定制的 Cobalt Strike C2 Beacon。该源代码是使用 Intellij IDEA IDE 开发的。beacon/.idea/workspace.xml 包含指向打开文件及其位置的指针以及最近的项目搜索历史记录。源代码的最后更新是在 2024 年 6 月。
+
+config.cpp 文件包含两个 Cobalt Strike 配置二进制块。这些是有效的块，可以使用 SentinelOne 的 CobaltStrikeParser 脚本解析，并包含以下设置：
+
+............................................................................
+BeaconType - HTTP
+Port - 8172
+SleepTime - 60842
+MaxGetSize - 1048576
+Jitter - 0
+MaxDNS - Not Found
+PublicKey_MD5 - c5b6350189a4d960eee8f521b0a3061d
+C2Server - 192.168.179.112,/dot.gif
+UserAgent - Mozilla/5.0 (compatible; MSIE 9.0;
+Windows NT 6.1; WOW64; Trident/5.0; BOIE9;ENUSSEM)
+HttpPostUri - /submit.php
+..
+Watermark_Hash - BeudtKgqnlm0Ruvf+VYxuw==
+Watermark - 126086
+............................................................................
+
+KIM 的版本还包括在 2025 年被纳入上述 LKM 后门（hkcap.c）的早期修订版代码。然而，它并不完整，缺少一些关键文件（如 config.h）。
+
+/bak/ 子目录包含一些文件的旧版本。
+
+----[ 2.4 Android Toybox
+
+存放位置： home/user/Downloads/toybox/third_party_toybox
+
+KIM 正大力开发用于 Android 的 ToyBox。它似乎是在提交 ID 896fa846b1ec8cd4895f6320b56942f129e54bc9 附近从 ToyBox 的官方 GitHub 仓库分叉出来的。我们尚未调查众多的 ToyBox 修改是为了什么。
+
+诚邀社区进一步剖析。
+
+----[ 2.5 Ivanti Control 又名 RootRot
+
+存放位置： mnt/hgfs/Desktop/ivanti_control
+
+我们展示一个用于访问一个众所周知的公开后门的客户端源代码。2017 年，SynAcktiv [#11] 错误地将此后门识别为“漏洞”。后来发现 [#12] 这实际上是威胁行为者留下的植入物。
+
+它的名字是“RootRot”。
+
+以下请求如果收到“HIT”响应，则表示后门正在运行：
+............................................................................
+curl -ksi --cookie "DSPSALPREF=cHJpbnRmKCJISVQiKTsK"
+"https://HOST/dana-na/auth/setcookie.cgi"
+............................................................................
+
+----[ 2.6 Bushfire
+
+存放位置： /mnt/hgfs/Desktop/exp1_admin.py
+(该文件也包含在 ivanti-new-exp-20241220.zip 中)
+
+这是一个 Ivanti 漏洞利用程序，可能针对 CVE-2025-0282、CVE-2025-0283 或 CVE-2025-22457，其载荷会安装一个后门。
+
+Mandiant 最近在野外发现了该载荷。他们将此活动归因于 UNC5221，一个疑似与中国有关的间谍行为者 [#13]。
+
+exp1_admin.py 使用了与 Mandiant 在野外发现的相同的 iptables 命令。
+
+该漏洞利用程序附带文档，翻译后写道：
+
+text
+     >>> “如果漏洞利用失败，请联系我们” <<<
+这可能表明这两个国家行为者之间存在代码共享和支持。
+
+该载荷还允许远程访问受感染系统。
+
+有趣的部分在代码第 2219 行，密钥/魔术值（magics）在此生成：
+
+密钥只有 206^4 种不同组合（<31 位强度）。
+
+魔术值有 (26*2 + 10)^3 种不同组合（<18 位强度）。
+
+加密发生在第 85 行，方式是....异或（XOR），使用 31 位密钥 :>
+
+第 335 行，函数 detect_door() 可用于远程扫描此后门。
+
+值得注意的是，只有魔术值（而非密钥）用于“敲”后门。
+
+魔术值在 TLS Client-Hello 消息的 Client-Random 的前 24 位中传输。普通 Client-Random 具有这种排列的前 24 位的几率约为 1/70。
+
+梗警告！代码中有一句“All-your-bases-are-belong-to-us”：
+
+text
+     >>>> “目标不存在后门！” (The target doesn't exist backdoor!) <<<
+----[ 2.7 Spawn Chimera 与《韩民族日报》
+
+存放位置： mnt/hgfs/Desktop/New folder/203.234.192.200_client.zip
+
+客户端通过端口敲门（port knocking）访问 SpawnChimera 后门。
+
+IP 203.234.192.200 属于 https://hani.co.kr（《韩民族日报》），韩国一家自由派报纸。
+
+client.py 第 152 行显示了端口敲门方法：它再次隐藏在 TLS-Client-Hello 的 32 字节 ClientRandom 字段中，但有了新花样：
+
+前 4 字节必须是剩余 28 字节的正确 crc32 校验值。
+
+............................................................................
+random = os.urandom(28)
+
+client_hello[15:43] = random
+jamcrc = int("0b"+"1"*32, 2) - zlib.crc32(random)
+client_hello[11:15] = struct.pack('!I', jamcrc)
+............................................................................
+
+我们诚邀社区进一步调查。
+
+--[ 3. 识别 Kimsuky
+
+得出该威胁行为者属于 Kimsuky 的结论，是基于发现了一系列痕迹和线索，分析后揭示出的模式和特征与其他任何组织都过于吻合。
+
+这些线索包括：系统“locale”设置为韩语，几个配置文件中包含之前与 Kimsuky 的基础设施和攻击相关联的域名。泄露的代码与他们先前活动中的代码存在相似之处。
+
+另一个反复出现的细节是威胁行为者严格的办公时间，总是在平壤时间（UTC+8:30）上午 9:00 左右连接，并在下午 5:00 前断开连接。
+
+----[ 3.1 - “隐秘追踪者”行动 (Operation Covert Stalker)
+
+“隐秘追踪者”行动 [#1] 是 AhnLab 给朝鲜针对韩国个人（记者、研究人员、政客等）和组织进行的为期数月的鱼叉式网络钓鱼活动起的名字。
+
+与此次攻击相关的一个域名的 Web 服务器配置在威胁行为者的系统上被发现。
+
+............................................................................
+SSLCertificateFile /etc/letsencrypt/live/nid-security.com/cert.pem
+............................................................................
+
+存放位置：
+work/mnt/hgfs/Desktop/New folder/vps1/sites-available/default-ssl.conf
+
+域名 nid.nid-security.com[#2] 在 2024-11-05[#3] 解析到 27.255.80.170，这也对应于另一个文件，该文件包含解释如何获取该域名证书的注释。
+
+存放位置： work/mnt/hgfs/Desktop/New folder/readme.txt
+
+----[ 3.2 - 被盗的 GPKI 证书
+
+2024 年初，S2W [#4] 发现了一种用 Go 编写的新恶意软件，标记为 Troll Stealer。该恶意软件能够窃取存储在受感染设备上的 GPKI（政府公钥基础设施）证书和密钥。
+
+GPKI 是韩国政府员工签署文件并证明其真实性的方式。
+
+威胁行为者的工作站上有数千个此类文件。
+
+............................................................................
+subject=C=KR, O=Government of Korea, OU=Ministry of Unification,
+OU=people, CN=Lee Min-kyung
+issuer=C=KR, O=Government of Korea, OU=GPKI, CN=CA131100001
+............................................................................
+
+存放位置：
+work/home/user/Desktop/desktop/uni_certs && work/home/user/Downloads/cert/
+
+威胁行为者开发了一个 Java 程序来破解保护密钥和证书的密码。
+
+............................................................................
+136박정욱001_env.key Password $cys13640229
+041▒Φ├ó┐╡001_env.key Password !jinhee1650! (注：原文件名包含乱码字符)
+041▒Φ├ó┐╡001_sig.key Password ssa9514515!!
+[...]
+............................................................................
+
+存放位置： work/home/user/Downloads/cert/src/cert.java
+
+----[ 3.3 相似目标
+
+我们的威胁行为者攻击了先前被归因于 Kimsuky 攻击的相同目标。
+
+[ Naver (韩国门户网站)
+
+Naver Corporation 是一家韩国综合性企业，提供广泛的服务。包括搜索引擎（韩国使用最广泛的）、Naver Pay（移动支付服务）、Naver Maps（类似于谷歌地图）、电子邮件服务等。
+
+Naver 有被朝鲜攻击的历史。2024 年，Zscaler 发现了一个名为 TRANSLATEXT 的新 Google Chrome 扩展，由 Kimsuky 开发 [#8]。该扩展在访问特定页面（如 nid.naver.com - Naver 登录页面）时，可以向浏览器注入 auth.js 以窃取登录凭据。
+
+第 2.1 节中描述的钓鱼攻击使用 nid.navermails.com 作为其主要 URL。该域名已被 Ahnlab 发现与 Kimsuky 有关 [#9]。
+
+[ 韩国统一部 (Ministry of Unification)
+
+Kimsuky 的常规目标是韩国统一部。攻击者使用从 GPKI 破解的密码，并制作了一个自定义字典用于暴力破解。
+
+日志文件显示，这些密码曾被用于尝试登录该部的域名。
+
+............................................................................
+unikorea123$
+unikorea1!!
+unikorea100
+unikorea625!
+[...]
+............................................................................
+
+存放位置： work/home/user/Downloads/cert/dict/pass.txt
+
+----[ 3.4 针对 Microsoft 用户的 AiTM 攻击假设
+
+2022 年中，Microsoft [#5] 和 Zscaler [#6] 检测并报告了一次 AiTM（中间人攻击）攻击。该攻击的原理是使用一个 Web 服务器充当合法登录页面和受害者之间的代理。
+
+受害者收到一封电子邮件，邀请他们点击一个 HTML 附件。打开后，他们会被重定向到通过 HTTPS 访问的代理。然后，代理会将任何请求转发到 Microsoft 服务器（通过 HTTPS 重新加密数据）。
+
+一旦登录，代理会记录会话 Cookie 并将受害者重定向到 Microsoft 服务器。
+
+被窃取的 Cookie 是有效的，攻击者无需任何进一步的 MFA 即可使用它。
+
+此活动中使用的域名是 websecuritynotice.com [#7]。
+
+虽然在此威胁行为者的系统中没有找到完全相同的域名，但使用了一个非常相似的（注意多了一个 's'）：
+
+............................................................................
+subject=CN=*.websecuritynotices.com
+............................................................................
+
+存放位置： vps/etc/letsencrypt/live/websecuritynotices.com
+
+战术、技术和程序（TTPs）、域名的相似性以及攻击后活动（支付欺诈等）显示出与 Kimsuky 的强烈关联。
+
+----[ 3.5 KIM 是中国人吗？
+
+KIM 使用谷歌将韩语翻译成简体中文。他确实似乎懂一点（非常少的）韩语，无需翻译。
+
+KIM 遵循中国的公共假期安排：5 月 31 日至 6 月 2 日是端午节。KIM 在此期间没有工作，而在朝鲜这将是正常的工作日。
+
+然而，使用 https://github.com/obsidianforensics/hindsight，他的 Chrome 设置显示 KIM 使用的是“韩国标准时间”。
+
+我们谨慎地认为 KIM 是中国人，但服务于朝鲜（主要攻击韩国）和中国（攻击台湾）的双重议程。
+
+----[ 3.6 趣闻与笑料]
+
+2023 年 9 月，“KIM” 试图在 namecheap.com 购买域名 'nextforum-online.com'。支付可以使用比特币，能出什么问题呢？
+
+几天后，namecheap.com 在未给出解释的情况下禁用了该域名。当“KIM”要求解封时，namecheap.com 要求提供以下信息：
+
+............................................................................
+为了验证注册域名的合法性，请向我们提供以下信息：
+
+注册域名的目的
+
+确认您有权代表 Microsoft 行事的文件，
+或确认相关域名与其无关的证明。
+............................................................................
+
+=> 哈哈，毕竟 namecheap.com 也不是刀枪不入 :)
+
+另一个趣闻：2020 年，当 websecuritynotice.com 被用于网络钓鱼活动时，所有者创建了几个看起来逼真的 URL 子域名用于钓鱼攻击：
+
+............................................................................
+login.websecuritynotice.com. IN A 80.240.25.169
+wwwoffice.websecuritynotice.com. IN A 80.240.25.169
+www-microsoft.websecuritynotice.com. IN A 80.240.25.169
+prod-msocdn-25ae5ec6.websecuritynotice.com. IN A 80.240.25.169
+prod-msocdn-55e5273a.websecuritynotice.com. IN A 80.240.25.169
+prod-msocdn-84311529.websecuritynotice.com. IN A 80.240.25.169
+prod-msocdn-c7b8a444.websecuritynotice.com. IN A 80.240.25.169
+aadcdn-msauth-84311529.websecuritynotice.com. IN A 80.240.25.169
+sts-glb-nokia-346189f1.websecuritynotice.com. IN A 80.240.25.169
+res-cdn-office-84311529.websecuritynotice.com. IN A 80.240.25.169
+aadcdn-msftauth-25ae5ec6.websecuritynotice.com. IN A 80.240.25.169
+aadcdn-msftauth-55e5273a.websecuritynotice.com. IN A 80.240.25.169
+aadcdn-msftauth-84311529.websecuritynotice.com. IN A 80.240.25.169
+r4-res-office365-55e5273a.websecuritynotice.com. IN A 80.240.25.169
+r4-res-office365-84311529.websecuritynotice.com. IN A 80.240.25.169
+............................................................................
+
+然而，在 2025 年，“KIM” 变得马虎，只使用了主域名：
+
+http://www.websecuritynotices.com/request.php?i=amhraW0xQGtsaWQub3Iua3I=
+
+（参数 "i" 是收件人电子邮件的 base64 编码。本例中是 'jhkim1@klid.or.kr'。）
+
+在 2025 年 1 月，该域名指向 IP 104.167.16.97。
+在 2025 年 3 月，域名 download.sponetcloud.com 解析到同一 IP。
+
+在 VirusTotal 上有它的关联域名：sharing.sponetcloud.com
+
+以下 URL 与此域名相关联：
+
+https://sharing.sponetcloud.com/logo.png?v=bG1lMjc2MUBzcG8uZ28ua3I=
+https://sharing.sponetcloud.com/bigfile/v1/urls/view?\
+shareto=aGFudGFlaHdhbkBzcG8uZ28ua3I=
+
+参数依旧是 base64 编码，解码为 'lme2761@spo.go.kr' 和 'hantaehwan@spo.go.kr'。两者都是韩国大检察厅的目标。
+
+相同的电子邮件地址（以及更多）出现在“KIM”的 VPS 上的文件 request_log.txt 中：
+
+hantaehwan@spo.go.kr
+paragon74@spo.go.kr
+baekdu475@spo.go.kr
+[...]
+
+或者这是一个伪装（false-flag）的威胁行为者？
+
+“KIM”可能故意将他的某些域名指向先前已知与 Kimsuky 相关联的 IP 地址。
+
+例如，nid-security.com 有以下 DNS 托管历史：
+
+............................................................................
+nid-security.com. IN A 27.255.80.170 (观察日期: 2024-11-05)
+nid-security.com. IN A 45.133.194.126 (观察日期: <= 2025-05-09)
+nid-security.com. IN A 185.56.91.21
+nid-security.com. IN A 192.64.119.241
+*.nid-security.com. IN A 45.133.194.126
+lcs.nid-security.com. IN A 27.255.80.170
+lcs.nid-security.com. IN A 45.133.194.126
+nid.nid-security.com. IN A 27.255.80.170
+nid.nid-security.com. IN A 45.133.194.126
+www.nid-security.com. IN A 45.133.194.126
+rcaptcha.nid-security.com. IN A 27.255.80.170
+rcaptcha.nid-security.com. IN A 45.133.194.126
+zwkd3e3wbc.nid-security.com. IN A 45.133.194.126
+............................................................................
+
+VPS 上的钓鱼日志，日期为 2024 年 12 月 2 日，显示了该域名：
+
+https://nid.nid-security.com/bigfileupload/download?\
+h=UJw39mzt3bLZOESuajYK1h-G1UlFavI1vmLUbNvCrX80-
+AtVgL7TIsphr1hlrvKOdOR-dbnMHVV7NJ4N
+
+在这个月，该域名解析到 45.133.194.126。那么 27.255.80.170 是障眼法吗？
+
+最后一个趣闻。在注册 websecuritynotices.com 域名时，这位“Kimsuky”成员在 SOA 记录中暴露了他的电子邮件地址。哈哈
+
+websecuritynotices.com IN SOA ns4.1domainregistry.com dysoni91.tutamail.com
+
+--[ 参考文献
+
+[#1] https://image.ahnlab.com/atip/content/atcp/2023/10/20231101_Kimsuky_OP.-Covert-Stalker.pdf (韩文)
+[#2] https://raw.githubusercontent.com/stamparm/maltrail/refs/heads/master/trails/static/malware/apt_kimsuky.txt
+[#3] https://www.virustotal.com/gui/ip-address/27.255.80.170/relations
+[#4] https://medium.com/s2wblog/kimsuky-disguised-as-a-korean-company-signed-with-a-valid-certificate-to-distribute-troll-stealer-cfa5d54314e2
+[#5] https://www.microsoft.com/en-us/security/blog/2022/07/12/from-cookie-theft-to-bec-attackers-use-aitm-phishing-sites-as-entry-point-to-further-financial-fraud/
+[#6] https://www.zscaler.com/blogs/security-research/large-scale-aitm-attack-targeting-enterprise-users-microsoft-email-services
+[#7] https://raw.githubusercontent.com/BRANDEFENSE/IoC/refs/heads/main/AiTM%20Phishing%20Campaign%20IoC's.txt
+[#8] https://www.zscaler.com/blogs/security-research/kimsuky-deploys-translatext-target-south-korean-academia
+[#9] https://www.ahnlab.com/ko/contents/content-center/32030 (韩文)
+[#10] https://cloud.google.com/blog/topics/threat-intelligence/ivanti-connect-secure-vpn-zero-day?hl=en
+[#11] https://www.synacktiv.com/sites/default/files/2024-01/synacktiv-pulseconnectsecure-multiple-vulnerabilities.pdf
+[#12] https://cloud.google.com/blog/topics/threat-intelligence/ivanti-post-exploitation-lateral-movement?hl=en
+[#13] https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-exploiting-critical-ivanti-vulnerability
+[#14] https://home.treasury.gov/news/press-releases/jy1938 (美国财政部制裁公告)
+[#15] https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-orb-networks
+[#16] https://bafybeih65no5dklpqfe346wyeiak6wzemv5d7z2ya7nssdgwdz4xrmdu6i.ipfs.dweb.link/ (IPFS 地址)
+[#17] http://fckilfkscwusoopguhi7i6yg3l6tknaz7lrumvlhg5mvtxzxbbxlimid.onion/ (Tor 地址)
